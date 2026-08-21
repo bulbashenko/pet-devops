@@ -1,0 +1,31 @@
+# Jenkins controller with zero manual setup.
+#
+# Plugins are installed at build time and the whole configuration comes from
+# casc.yaml, so `make up` produces an identical controller every time: no setup
+# wizard, no clicking through job creation, nothing that lives only in
+# $JENKINS_HOME. Throwing the volume away and starting over costs nothing.
+FROM docker.io/jenkins/jenkins:2.541.3-lts-jdk17
+
+USER root
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git curl \
+    && rm -rf /var/lib/apt/lists/*
+USER jenkins
+
+COPY --chown=jenkins:jenkins plugins.txt /usr/share/jenkins/ref/plugins.txt
+RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt --latest true
+
+# Deliberately outside $JENKINS_HOME: that path is a named volume, and a volume
+# shadows whatever the image put there — the config would silently keep whatever
+# version happened to be baked in on the volume's first start.
+COPY --chown=jenkins:jenkins casc.yaml /usr/share/jenkins/ref/casc/jenkins.yaml
+
+ENV CASC_JENKINS_CONFIG=/usr/share/jenkins/ref/casc/jenkins.yaml \
+    JAVA_OPTS="-Djenkins.install.runSetupWizard=false -Dhudson.model.DownloadService.noSignatureCheck=true"
+
+EXPOSE 8080 50000
+
+LABEL org.opencontainers.image.source="https://github.com/bulbashenko/pet-devops" \
+      org.opencontainers.image.title="pet-devops Jenkins controller" \
+      org.opencontainers.image.description="Jenkins LTS configured entirely through JCasC"

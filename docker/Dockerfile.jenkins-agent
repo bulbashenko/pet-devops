@@ -1,0 +1,46 @@
+# Jenkins build agent.
+#
+# FROM the shared toolchain image, so the compiler, CMake and Conan that Jenkins
+# uses are byte-for-byte the ones a developer and GitHub Actions use. The only
+# thing added here is the remoting client and Ansible for the deploy stage.
+ARG BUILDER_IMAGE=pet-devops-builder:local
+# hadolint ignore=DL3006
+FROM ${BUILDER_IMAGE}
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG JENKINS_AGENT_VERSION=3283.v92c105e0f819
+
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        openjdk-17-jre-headless \
+        ansible \
+        sshpass \
+        openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL -o /usr/share/jenkins-agent.jar \
+      "https://repo.jenkins-ci.org/public/org/jenkins-ci/main/remoting/${JENKINS_AGENT_VERSION}/remoting-${JENKINS_AGENT_VERSION}.jar" \
+    # Ubuntu 24.04 ships a stock 'ubuntu' account on UID 1000. Reusing that UID
+    # keeps bind-mounted files owned by the developer readable inside the agent.
+    && userdel --remove ubuntu 2>/dev/null || true \
+    && useradd --create-home --shell /bin/bash --uid 1000 jenkins \
+    && install -d -o jenkins -g jenkins /home/jenkins/agent
+
+COPY jenkins-agent-entrypoint.sh /usr/local/bin/jenkins-agent-entrypoint.sh
+RUN chmod +x /usr/local/bin/jenkins-agent-entrypoint.sh
+
+# Conan's cache lives in the agent's home so it survives across builds via the
+# named volume the compose file attaches.
+ENV CONAN_HOME=/home/jenkins/.conan2 \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+USER jenkins
+WORKDIR /home/jenkins/agent
+
+ENTRYPOINT ["/usr/local/bin/jenkins-agent-entrypoint.sh"]
+
+LABEL org.opencontainers.image.source="https://github.com/bulbashenko/pet-devops" \
+      org.opencontainers.image.title="pet-devops Jenkins agent" \
+      org.opencontainers.image.description="Build agent sharing the project toolchain image"

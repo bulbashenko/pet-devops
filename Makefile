@@ -86,9 +86,13 @@ image: builder-image ## Build the sensor-hub runtime image
 
 # --- local stack -------------------------------------------------------------
 
+.PHONY: keys
+keys: ## Generate the local SSH key the deploy target trusts
+	./scripts/gen_keys.sh
+
 .PHONY: up
-up: ## Start Jenkins, its agent and the deploy target
-	$(COMPOSE) up -d --build
+up: keys builder-image ## Start Jenkins, its agent and the deploy target
+	BUILDER_IMAGE=$(BUILDER_IMAGE) $(COMPOSE) up -d --build
 	@printf '\nJenkins:    http://localhost:8081  (admin / admin)\nsensor-hub: http://localhost:8080/healthz\n\n'
 
 .PHONY: down

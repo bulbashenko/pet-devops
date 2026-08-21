@@ -1,0 +1,94 @@
+# The local release stack: a Jenkins controller, a build agent that shares the
+# project's toolchain image, and a systemd host to deploy onto.
+#
+#   make keys && make up
+#
+# Nothing here needs configuring by hand — the controller is built from
+# jenkins/casc.yaml and the agent connects itself.
+
+name: pet-devops
+
+services:
+  jenkins-controller:
+    build:
+      context: ../jenkins
+      dockerfile: Dockerfile.controller
+    image: pet-devops-jenkins:local
+    container_name: pet-devops-jenkins
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+      - "50000:50000"
+    environment:
+      JENKINS_ADMIN_ID: "${JENKINS_ADMIN_ID:-admin}"
+      JENKINS_ADMIN_PASSWORD: "${JENKINS_ADMIN_PASSWORD:-admin}"
+      # Empty by default: the pipeline then reports publishing as skipped
+      # rather than failing. See scripts/publish.sh.
+      JFROG_URL: "${JFROG_URL:-}"
+      JFROG_USER: "${JFROG_USER:-}"
+      JFROG_TOKEN: "${JFROG_TOKEN:-}"
+      CONAN_REMOTE_URL: "${CONAN_REMOTE_URL:-}"
+      # Defaults to the repository mounted below, so the stack builds with no
+      # network access at all.
+      PIPELINE_REPO_URL: "${PIPELINE_REPO_URL:-file:///workspace}"
+      PIPELINE_REPO_BRANCH: "${PIPELINE_REPO_BRANCH:-main}"
+    volumes:
+      - jenkins-home:/var/jenkins_home
+      - ../:/workspace:ro,z
+      - ../secrets/deploy_key:/run/secrets/deploy_key:ro,z
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/login"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  jenkins-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins-agent
+      args:
+        BUILDER_IMAGE: "${BUILDER_IMAGE:-pet-devops-builder:local}"
+    image: pet-devops-jenkins-agent:local
+    container_name: pet-devops-jenkins-agent
+    restart: unless-stopped
+    depends_on:
+      jenkins-controller:
+        condition: service_healthy
+    environment:
+      JENKINS_URL: "http://jenkins-controller:8080"
+      JENKINS_AGENT_NAME: "ubuntu-build"
+      JENKINS_ADMIN_ID: "${JENKINS_ADMIN_ID:-admin}"
+      JENKINS_ADMIN_PASSWORD: "${JENKINS_ADMIN_PASSWORD:-admin}"
+    volumes:
+      - agent-workspace:/home/jenkins/agent
+      # A persistent Conan cache turns a five-minute cold build into seconds.
+      - agent-conan:/home/jenkins/.conan2
+      - ../:/workspace:ro,z
+      - ../secrets/deploy_key:/home/jenkins/.ssh/deploy_key:ro,z
+
+  target-host:
+    build:
+      context: .
+      dockerfile: Dockerfile.target-host
+    image: pet-devops-target:local
+    container_name: pet-devops-target
+    restart: unless-stopped
+    # systemd as PID 1 needs its own cgroup and a writable /run. Under rootless
+    # podman the daemon's unit sandbox cannot be applied either — the Ansible
+    # role detects that and installs a drop-in. See docs/runbook.md.
+    privileged: true
+    cgroup: host
+    tmpfs:
+      - /run
+      - /run/lock
+    ports:
+      - "2222:22"
+      - "8080:8080"
+    volumes:
+      - ../secrets/deploy_key.pub:/run/deploy-key/deploy_key.pub:ro,z
+
+volumes:
+  jenkins-home:
+  agent-workspace:
+  agent-conan:

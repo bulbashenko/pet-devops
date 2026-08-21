@@ -21,7 +21,7 @@ RUN conan create cpp/sensorcore --version "${SENSORCORE_VERSION}" \
         /out/usr/bin/sensor-hub
 
 
-FROM ubuntu:24.04 AS runtime
+FROM docker.io/library/ubuntu:24.04 AS runtime
 
 ARG SENSORCORE_VERSION=0.0.0
 

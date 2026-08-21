@@ -1,0 +1,38 @@
+# Pinned by major line rather than exact version: jenkins-plugin-cli resolves
+# the newest build compatible with the controller, and an image rebuild is the
+# moment to pick those up.
+
+# Configuration as code — the whole point of this controller image
+configuration-as-code
+job-dsl
+
+# Pipeline
+workflow-aggregator
+pipeline-stage-view
+pipeline-utility-steps
+timestamper
+ws-cleanup
+ansicolor
+
+# SCM
+git
+
+# Agents
+ssh-slaves
+
+# Reporting
+junit
+warnings-ng
+
+# Authorization — explicit permissions rather than "logged-in users can do
+# anything", which also keeps the config valid across Jenkins upgrades
+matrix-auth
+
+# Credentials
+credentials
+credentials-binding
+plain-credentials
+ssh-credentials
+
+# UI
+dark-theme

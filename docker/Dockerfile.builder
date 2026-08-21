@@ -3,7 +3,7 @@
 # agent (docker/Dockerfile.jenkins-agent builds FROM this image).
 #
 # One image means "works on my machine" and "works in CI" are the same claim.
-FROM ubuntu:24.04
+FROM docker.io/library/ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG CONAN_VERSION=2.31.2

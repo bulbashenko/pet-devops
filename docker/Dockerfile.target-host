@@ -3,7 +3,7 @@
 # It runs systemd and sshd, so the Ansible role installs a .deb and manages a
 # real unit — exactly what it would do against a VM — rather than being written
 # against a container-shaped special case.
-FROM ubuntu:24.04
+FROM docker.io/library/ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
