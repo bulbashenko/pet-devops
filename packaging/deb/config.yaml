@@ -1,0 +1,15 @@
+# sensor-hub configuration
+#
+# Every key can be overridden at runtime by an environment variable
+# (SENSOR_HUB_HOST, SENSOR_HUB_PORT, SENSOR_HUB_SEED, SENSOR_HUB_INTERVAL_MS),
+# which is how the compose stack retargets a container without a rebuild.
+
+host: 0.0.0.0
+port: 8080
+
+# Seeding the simulator keeps telemetry reproducible, so smoke tests can assert
+# on values instead of merely checking that the process is up.
+seed: 42
+
+# Milliseconds between simulated samples.
+interval_ms: 100

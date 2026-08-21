@@ -46,6 +46,29 @@ json to_json(const sensorcore::Stats& stats) {
                 {"stddev", stats.stddev}};
 }
 
+void print_usage(const char* program) {
+    fmt::print("usage: {} [CONFIG_PATH] [--version] [--healthcheck] [--help]\n", program);
+    fmt::print("  CONFIG_PATH     defaults to /etc/sensor-hub/config.yaml\n");
+    fmt::print("  --healthcheck   probe a running instance and exit 0 when healthy\n");
+}
+
+/// Probes a locally running instance. Used as the container HEALTHCHECK so the
+/// runtime image does not need curl installed just to answer "am I alive".
+int run_healthcheck(const sensorhub::Config& config) {
+    const std::string host = (config.host == "0.0.0.0") ? "127.0.0.1" : config.host;
+    httplib::Client client(host, config.port);
+    client.set_connection_timeout(2, 0);
+    client.set_read_timeout(2, 0);
+
+    const auto response = client.Get("/healthz");
+    if (!response || response->status != 200) {
+        fmt::print(stderr, "healthcheck failed for {}:{}\n", host, config.port);
+        return 1;
+    }
+    fmt::print("{}\n", response->body);
+    return 0;
+}
+
 /// Clamps ?n= to a sane range so a stray `?n=100000000` cannot exhaust memory.
 std::size_t parse_count(const httplib::Request& request) {
     constexpr std::size_t kDefault = 10;
@@ -68,11 +91,36 @@ std::size_t parse_count(const httplib::Request& request) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    const std::string config_path =
-        (argc > 1) ? argv[1] : "/etc/sensor-hub/config.yaml";
+    std::string config_path = "/etc/sensor-hub/config.yaml";
+    bool healthcheck = false;
+
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
+        if (arg == "--version") {
+            fmt::print("{}\n", sensorcore::kVersion);
+            return 0;
+        }
+        if (arg == "--help" || arg == "-h") {
+            print_usage(argv[0]);
+            return 0;
+        }
+        if (arg == "--healthcheck") {
+            healthcheck = true;
+        } else if (arg.rfind("--", 0) == 0) {
+            fmt::print(stderr, "unknown option: {}\n", arg);
+            print_usage(argv[0]);
+            return 2;
+        } else {
+            config_path = arg;
+        }
+    }
 
     auto config = sensorhub::load_config(config_path);
     sensorhub::apply_env_overrides(config);
+
+    if (healthcheck) {
+        return run_healthcheck(config);
+    }
 
     sensorcore::Simulator simulator(sensorcore::default_channels(), config.seed);
     httplib::Server server;

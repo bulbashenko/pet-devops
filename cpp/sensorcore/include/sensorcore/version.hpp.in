@@ -2,7 +2,7 @@
 
 namespace sensorcore {
 
-/// Version string injected by CMake from scripts/version.sh (git tag).
-constexpr const char* kVersion = "@sensorcore_VERSION@";
+/// Full version string injected by CMake from scripts/version.sh (git tag).
+constexpr const char* kVersion = "@SENSORCORE_VERSION@";
 
 }  // namespace sensorcore

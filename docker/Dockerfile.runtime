@@ -1,0 +1,50 @@
+# Runtime image for the sensor-hub daemon.
+#
+# Multi-stage: the toolchain image compiles, the final layer carries only the
+# binary and the runtime libraries it actually links against.
+ARG BUILDER_IMAGE=pet-devops-builder:local
+# hadolint ignore=DL3006
+FROM ${BUILDER_IMAGE} AS build
+
+ARG SENSORCORE_VERSION=0.0.0
+ENV SENSORCORE_VERSION=${SENSORCORE_VERSION}
+
+WORKDIR /src
+COPY cpp ./cpp
+COPY scripts ./scripts
+
+RUN conan create cpp/sensorcore --version "${SENSORCORE_VERSION}" \
+        --build=missing -s build_type=Release -c tools.build:skip_test=True \
+    && conan build cpp/sensor-hub --version "${SENSORCORE_VERSION}" \
+        --build=missing -s build_type=Release \
+    && install -Dm755 "$(find cpp/sensor-hub/build -name sensor-hub -type f -perm -u+x | head -1)" \
+        /out/usr/bin/sensor-hub
+
+
+FROM ubuntu:24.04 AS runtime
+
+ARG SENSORCORE_VERSION=0.0.0
+
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates libstdc++6 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --system --create-home --shell /usr/sbin/nologin sensorhub
+
+COPY --from=build /out/usr/bin/sensor-hub /usr/bin/sensor-hub
+COPY packaging/deb/config.yaml /etc/sensor-hub/config.yaml
+
+USER sensorhub
+EXPOSE 8080
+
+# The daemon serves /healthz specifically so orchestrators have a cheap probe.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=3s --retries=3 \
+    CMD ["/usr/bin/sensor-hub", "--healthcheck"]
+
+ENTRYPOINT ["/usr/bin/sensor-hub"]
+CMD ["/etc/sensor-hub/config.yaml"]
+
+LABEL org.opencontainers.image.source="https://github.com/bulbashenko/pet-devops" \
+      org.opencontainers.image.title="sensor-hub" \
+      org.opencontainers.image.description="Simulated sensor telemetry HTTP daemon" \
+      org.opencontainers.image.version="${SENSORCORE_VERSION}"

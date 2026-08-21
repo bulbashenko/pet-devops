@@ -1,0 +1,37 @@
+#!/bin/sh
+set -e
+
+SERVICE_USER=sensorhub
+
+case "$1" in
+    configure)
+        if ! getent passwd "${SERVICE_USER}" >/dev/null; then
+            adduser --system --group --no-create-home \
+                    --home /nonexistent --shell /usr/sbin/nologin \
+                    "${SERVICE_USER}" >/dev/null
+        fi
+
+        chown root:"${SERVICE_USER}" /etc/sensor-hub/config.yaml
+        chmod 0640 /etc/sensor-hub/config.yaml
+
+        if [ -d /run/systemd/system ]; then
+            systemctl daemon-reload
+            systemctl enable sensor-hub.service >/dev/null 2>&1 || true
+            # A fresh install starts the service; an upgrade restarts it only if
+            # it was already running, so a deliberately stopped unit stays stopped.
+            if [ -z "$2" ]; then
+                systemctl start sensor-hub.service || true
+            elif systemctl is-active --quiet sensor-hub.service; then
+                systemctl restart sensor-hub.service || true
+            fi
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

@@ -1,0 +1,33 @@
+[Unit]
+Description=sensor-hub telemetry daemon
+Documentation=https://github.com/bulbashenko/pet-devops
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sensorhub
+Group=sensorhub
+ExecStart=/usr/bin/sensor-hub /etc/sensor-hub/config.yaml
+Restart=on-failure
+RestartSec=2s
+
+# The daemon reads one config file and serves HTTP; nothing else is needed, so
+# everything else is taken away.
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

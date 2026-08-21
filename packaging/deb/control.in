@@ -1,0 +1,15 @@
+Package: sensor-hub
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: @ARCH@
+Depends: libc6, libstdc++6, adduser
+Maintainer: Aleksandr Albekov <bulbashenko69@gmail.com>
+Homepage: https://github.com/bulbashenko/pet-devops
+Description: Simulated sensor telemetry HTTP daemon
+ sensor-hub exposes deterministic, seeded sensor telemetry over a small REST
+ API (/healthz, /api/v1/readings, /api/v1/stats). It exists to give a build,
+ packaging and deployment pipeline something realistic to carry end to end.
+ .
+ The companion command line client is packaged separately as the Python
+ distribution "sensorctl".

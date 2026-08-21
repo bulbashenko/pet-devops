@@ -37,16 +37,10 @@ log "conan create sensorcore/${VERSION}"
 log "building sensor-hub"
 "${CONAN}" build cpp/sensor-hub --version "${VERSION}" "${conan_args[@]}"
 
-binary="cpp/sensor-hub/build/${BUILD_TYPE}/sensor-hub"
-if [[ ! -x "${binary}" ]]; then
-    # cmake_layout drops single-config generators one level up.
-    binary="cpp/sensor-hub/build/sensor-hub"
-fi
-
-if [[ ! -x "${binary}" ]]; then
+binary="$(find cpp/sensor-hub/build -name sensor-hub -type f -perm -u+x 2>/dev/null | head -1 || true)"
+if [[ -z "${binary}" ]]; then
     printf 'sensor-hub binary not found after build\n' >&2
     exit 1
 fi
 
-log "built ${binary}"
-"${binary}" --version >/dev/null 2>&1 || true
+log "built ${binary} (reports version $("${binary}" --version))"

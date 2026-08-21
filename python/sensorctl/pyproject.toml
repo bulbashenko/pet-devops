@@ -9,7 +9,7 @@ description = "Command line client for the sensor-hub telemetry daemon"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Alexander Bulbashenko" }]
+authors = [{ name = "Aleksandr Albekov" }]
 keywords = ["telemetry", "cli", "devops"]
 classifiers = [
     "Development Status :: 4 - Beta",

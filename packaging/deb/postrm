@@ -1,0 +1,24 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    purge)
+        rm -rf /etc/sensor-hub
+        if getent passwd sensorhub >/dev/null; then
+            deluser --system sensorhub >/dev/null 2>&1 || true
+        fi
+        ;;
+    remove)
+        if [ -d /run/systemd/system ]; then
+            systemctl daemon-reload || true
+        fi
+        ;;
+    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        ;;
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

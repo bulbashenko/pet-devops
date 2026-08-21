@@ -1,0 +1,24 @@
+# Build output must never enter the image context: a CMakeCache.txt from the
+# host records absolute host paths and makes the in-image configure step fail.
+**/build/
+**/CMakeUserPresets.json
+dist/
+stage/
+reports/
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/.pytest_cache/
+**/.ruff_cache/
+**/*.egg-info/
+
+# Repository metadata and local state
+.git/
+.github/
+docs/
+jenkins/
+ansible/
+**/.env
+secrets/
