@@ -1,0 +1,124 @@
+---
+- name: Validate the requested package source
+  ansible.builtin.assert:
+    that:
+      - sensor_hub_package_source in ['local', 'artifactory']
+    fail_msg: >-
+      sensor_hub_package_source must be 'local' or 'artifactory',
+      got '{{ sensor_hub_package_source }}'
+
+- name: Record the currently installed version
+  ansible.builtin.command: dpkg-query --showformat=${Version} --show sensor-hub
+  register: sensor_hub_installed
+  changed_when: false
+  failed_when: false
+
+- name: Report the starting state
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'sensor-hub ' + sensor_hub_installed.stdout + ' is installed'
+         if sensor_hub_installed.rc == 0
+         else 'sensor-hub is not installed yet' }}
+
+# --- fetch -------------------------------------------------------------------
+
+- name: Copy the locally built package to the target
+  ansible.builtin.copy:
+    src: "{{ sensor_hub_local_deb }}"
+    dest: /tmp/{{ sensor_hub_local_deb | basename }}
+    mode: "0644"
+  when: sensor_hub_package_source == 'local'
+  register: sensor_hub_local_copy
+
+- name: Download the released package from Artifactory
+  ansible.builtin.get_url:
+    url: >-
+      {{ sensor_hub_artifactory_url }}/sensor-hub/{{ sensor_hub_version }}/sensor-hub_{{ sensor_hub_version }}_{{ ansible_architecture | replace('x86_64', 'amd64') }}.deb
+    dest: /tmp/sensor-hub_{{ sensor_hub_version }}.deb
+    mode: "0644"
+    headers:
+      Authorization: Bearer {{ sensor_hub_artifactory_token }}
+  when: sensor_hub_package_source == 'artifactory'
+  register: sensor_hub_download
+  no_log: true # the Authorization header must not reach the log
+
+- name: Resolve the package path on the target
+  ansible.builtin.set_fact:
+    sensor_hub_deb_path: >-
+      {{ sensor_hub_local_copy.dest if sensor_hub_package_source == 'local'
+         else sensor_hub_download.dest }}
+
+# --- install -----------------------------------------------------------------
+
+- name: Install the package
+  ansible.builtin.apt:
+    deb: "{{ sensor_hub_deb_path }}"
+  notify: Restart sensor-hub
+  register: sensor_hub_install
+
+- name: Render the service configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/sensor-hub/config.yaml
+    owner: root
+    group: sensorhub
+    mode: "0640"
+  notify: Restart sensor-hub
+
+- name: Create the systemd drop-in directory on container targets
+  ansible.builtin.file:
+    path: /etc/systemd/system/sensor-hub.service.d
+    state: directory
+    mode: "0755"
+  when: sensor_hub_relax_sandbox | bool
+
+- name: Relax the unit sandbox on container targets
+  ansible.builtin.template:
+    src: 10-container.conf.j2
+    dest: /etc/systemd/system/sensor-hub.service.d/10-container.conf
+    mode: "0644"
+  when: sensor_hub_relax_sandbox | bool
+  notify: Restart sensor-hub
+
+- name: Enable and start the service
+  ansible.builtin.systemd_service:
+    name: sensor-hub
+    enabled: true
+    state: started
+    daemon_reload: true
+
+# Handlers normally run at the end of the play, but the verification below has
+# to see the post-restart process, not the one it replaced.
+- name: Apply pending restarts before verifying
+  ansible.builtin.meta: flush_handlers
+
+# --- verify ------------------------------------------------------------------
+
+- name: Wait for the service to accept connections
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ sensor_hub_listen_port }}"
+    timeout: "{{ sensor_hub_health_timeout }}"
+
+- name: Check the health endpoint
+  ansible.builtin.uri:
+    url: http://127.0.0.1:{{ sensor_hub_listen_port }}/healthz
+    return_content: true
+  register: sensor_hub_health
+  until: sensor_hub_health.status == 200 and sensor_hub_health.json.status == 'ok'
+  retries: 10
+  delay: 2
+
+- name: Confirm the running daemon reports the version that was installed
+  ansible.builtin.command: dpkg-query --showformat=${Version} --show sensor-hub
+  register: sensor_hub_now
+  changed_when: false
+
+- name: Fail when the served version differs from the installed package
+  ansible.builtin.assert:
+    that:
+      - sensor_hub_health.json.version == sensor_hub_now.stdout
+    fail_msg: >-
+      Deployed package is {{ sensor_hub_now.stdout }} but the daemon reports
+      {{ sensor_hub_health.json.version }} — the old process is probably still running.
+    success_msg: "sensor-hub {{ sensor_hub_now.stdout }} is live and healthy"

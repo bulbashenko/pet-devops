@@ -1,0 +1,26 @@
+---
+- name: Deploy sensor-hub
+  hosts: sensor_hubs
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Require a package to deploy
+      ansible.builtin.assert:
+        that:
+          - (sensor_hub_package_source == 'local' and sensor_hub_local_deb | length > 0)
+            or (sensor_hub_package_source == 'artifactory' and sensor_hub_version | length > 0)
+        fail_msg: >-
+          Pass either -e sensor_hub_local_deb=<path> or
+          -e "sensor_hub_package_source=artifactory sensor_hub_version=<version>".
+          scripts/deploy.sh does this for you.
+
+  roles:
+    - role: sensor_hub
+
+  post_tasks:
+    - name: Summarise the deployment
+      ansible.builtin.debug:
+        msg: >-
+          {{ inventory_hostname }} now serves sensor-hub
+          {{ sensor_hub_health.json.version }} on port {{ sensor_hub_listen_port }}

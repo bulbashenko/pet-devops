@@ -1,0 +1,17 @@
+---
+# A unit that crash-looped on a previous run sits in "failed" state behind
+# systemd's start rate limit, and a plain restart is refused with "Start request
+# repeated too quickly". Clearing that first is what makes re-running the
+# playbook after a bad deploy actually recover.
+- name: Clear any previous failed state
+  ansible.builtin.command: systemctl reset-failed sensor-hub.service
+  changed_when: false
+  failed_when: false
+  listen: Restart sensor-hub
+
+- name: Restart sensor-hub
+  ansible.builtin.systemd_service:
+    name: sensor-hub
+    state: restarted
+    daemon_reload: true
+  listen: Restart sensor-hub

@@ -1,0 +1,64 @@
+# Linters run identically on a developer's machine (`make lint`, or on commit)
+# and in CI, so a pull request cannot fail on formatting the author could not
+# have reproduced locally.
+#
+#   pre-commit install     # once, to run on every commit
+#   make lint              # everything, on demand
+
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-executables-have-shebangs
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-yaml
+        exclude: ^(jenkins/casc\.yaml|ansible/.*)$
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^python/
+      - id: ruff-format
+        files: ^python/
+
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v19.1.5
+    hooks:
+      - id: clang-format
+        types_or: [c++, c]
+        files: ^cpp/
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: [--severity=warning]
+
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.13.1-beta
+    hooks:
+      - id: hadolint-docker
+        files: ^docker/Dockerfile
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      # Credentials for Artifactory and the deploy target pass through this repo
+      # only as CI secrets — this hook is what keeps it that way.
+      - id: gitleaks
+
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v24.12.2
+    hooks:
+      - id: ansible-lint
+        files: ^ansible/

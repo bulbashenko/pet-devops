@@ -1,0 +1,32 @@
+# Managed by Ansible (roles/sensor_hub).
+#
+# The shipped unit hardens the service with the usual sandbox block
+# (ProtectSystem=strict, PrivateDevices, seccomp filters, a trimmed capability
+# bounding set). Applying any of that requires capabilities a rootless container
+# does not have, and systemd refuses to start the service at all:
+#
+#   sensor-hub.service: Failed to keep CAP_SYS_ADMIN: Operation not permitted
+#   sensor-hub.service: Main process exited, code=exited, status=217/USER
+#
+# Relaxing individual directives is not enough — the sandbox has to come off as
+# a block. Rather than weakening the unit that every real host installs, the
+# whole block is reset here, and only here: this file is written exclusively on
+# container targets (detected as {{ ansible_virtualization_type }}), never on a
+# VM or bare metal. See docs/runbook.md, "Deploy target fails to start".
+
+[Service]
+PrivateTmp=no
+PrivateDevices=no
+ProtectSystem=no
+ProtectHome=no
+ProtectKernelTunables=no
+ProtectKernelModules=no
+ProtectControlGroups=no
+RestrictAddressFamilies=
+RestrictNamespaces=no
+MemoryDenyWriteExecute=no
+LockPersonality=no
+RestrictSUIDSGID=no
+SystemCallArchitectures=
+NoNewPrivileges=no
+CapabilityBoundingSet=

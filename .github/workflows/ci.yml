@@ -1,0 +1,326 @@
+# Pull-request gate.
+#
+# Scope on purpose: this workflow proves a change compiles, passes tests and can
+# be packaged. Cutting a release — publishing to Artifactory and deploying to a
+# host — belongs to the Jenkins pipeline, which is where the internal network
+# and the deploy credentials live. See docs/adr/0001-gha-gates-jenkins-releases.md.
+#
+# Everything below calls `make`; no build logic lives in this file.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  BUILDER_IMAGE_NAME: ${{ github.repository }}/builder
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: pre-commit/action@v3.0.1
+
+  builder-image:
+    name: Toolchain image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve image reference
+        id: meta
+        run: |
+          # Lowercase: the registry rejects uppercase repository names, and
+          # GitHub org/user names are not guaranteed to be lowercase.
+          name="$(echo "${REGISTRY}/${BUILDER_IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')"
+          echo "image=${name}:${{ hashFiles('docker/Dockerfile.builder') }}" >> "$GITHUB_OUTPUT"
+          echo "name=${name}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The tag is the hash of the Dockerfile, so the image is rebuilt only when
+      # the toolchain actually changes; every other run is a cache hit.
+      - name: Build (and push on non-PR)
+        uses: docker/build-push-action@v6
+        with:
+          context: docker
+          file: docker/Dockerfile.builder
+          tags: ${{ steps.meta.outputs.image }}
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: ${{ github.event_name == 'pull_request' && 'type=docker,dest=/tmp/builder.tar' || '' }}
+
+      - name: Upload image for pull-request jobs
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: builder-image
+          path: /tmp/builder.tar
+          retention-days: 1
+
+  build-test:
+    name: Build & test
+    runs-on: ubuntu-24.04
+    needs: builder-image
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # scripts/version.sh needs the tag history to derive a version.
+          fetch-depth: 0
+
+      - name: Download toolchain image (pull requests)
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          name: builder-image
+          path: /tmp
+
+      - name: Load or pull the toolchain image
+        run: |
+          if [ -f /tmp/builder.tar ]; then
+            docker load --input /tmp/builder.tar
+          else
+            echo "${{ secrets.GITHUB_TOKEN }}" | \
+              docker login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
+            docker pull "${{ needs.builder-image.outputs.image }}"
+          fi
+
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-${{ runner.os }}-${{ hashFiles('cpp/**/conanfile.py') }}
+          restore-keys: conan-${{ runner.os }}-
+
+      - name: Build and test
+        run: |
+          docker run --rm \
+            --volume "${PWD}:/workspace" \
+            --volume "${HOME}/.conan2:/root/.conan2" \
+            --workdir /workspace \
+            "${{ needs.builder-image.outputs.image }}" \
+            bash -c 'git config --global --add safe.directory /workspace && make build test'
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: reports/*.xml
+
+      - name: Summarise test results
+        if: always()
+        run: |
+          for report in reports/*.xml; do
+            [ -f "${report}" ] || continue
+            printf '### %s\n\n```\n' "$(basename "${report}")" >> "$GITHUB_STEP_SUMMARY"
+            grep -o 'tests="[0-9]*"\|failures="[0-9]*"\|errors="[0-9]*"' "${report}" \
+              | head -3 >> "$GITHUB_STEP_SUMMARY"
+            printf '```\n\n' >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  package:
+    name: Package
+    runs-on: ubuntu-24.04
+    needs: [builder-image, build-test]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download toolchain image (pull requests)
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          name: builder-image
+          path: /tmp
+
+      - name: Load or pull the toolchain image
+        run: |
+          if [ -f /tmp/builder.tar ]; then
+            docker load --input /tmp/builder.tar
+          else
+            echo "${{ secrets.GITHUB_TOKEN }}" | \
+              docker login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
+            docker pull "${{ needs.builder-image.outputs.image }}"
+          fi
+
+      - name: Cache Conan packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.conan2
+          key: conan-${{ runner.os }}-${{ hashFiles('cpp/**/conanfile.py') }}
+          restore-keys: conan-${{ runner.os }}-
+
+      - name: Build .deb and wheel
+        run: |
+          docker run --rm \
+            --volume "${PWD}:/workspace" \
+            --volume "${HOME}/.conan2:/root/.conan2" \
+            --workdir /workspace \
+            "${{ needs.builder-image.outputs.image }}" \
+            bash -c 'git config --global --add safe.directory /workspace && make build package'
+
+      - name: Verify the .deb installs and the service starts
+        run: |
+          sudo apt-get install -y ./dist/*.deb
+          sudo systemctl is-enabled sensor-hub
+          # Give systemd a moment, then prove the daemon is actually serving.
+          for _ in $(seq 1 20); do
+            curl --silent --fail http://127.0.0.1:8080/healthz && break || sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:8080/healthz | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            dist/*.deb
+            dist/*.deb.sha256
+            dist/*.whl
+            dist/*.tar.gz
+
+  security:
+    name: Security
+    runs-on: ubuntu-24.04
+    needs: [builder-image, package]
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist
+
+      - name: Scan the repository for leaked secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan the filesystem for vulnerable dependencies
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          exit-code: "0" # reported, not gating — see docs/security.md
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+        continue-on-error: true
+
+      - name: Generate an SBOM for the release artifacts
+        uses: anchore/sbom-action@v0
+        with:
+          path: dist
+          format: spdx-json
+          artifact-name: sbom.spdx.json
+
+  publish:
+    name: Publish to Artifactory
+    runs-on: ubuntu-24.04
+    needs: [builder-image, package]
+    # Releases are Jenkins' job; this exists so the Artifactory path is also
+    # exercised publicly. It degrades to a no-op without credentials, which is
+    # what keeps forks and outside pull requests green.
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Report whether credentials are available
+        id: creds
+        run: |
+          if [ -n "${{ secrets.JFROG_TOKEN }}" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo 'No Artifactory credentials configured — publish skipped.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.creds.outputs.available == 'true'
+        with:
+          name: packages
+          path: dist
+
+      - name: Log in to GHCR
+        if: steps.creds.outputs.available == 'true'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
+
+      - name: Upload the Conan package and the .deb
+        if: steps.creds.outputs.available == 'true'
+        env:
+          CONAN_REMOTE_URL: ${{ secrets.CONAN_REMOTE_URL }}
+          JFROG_URL: ${{ secrets.JFROG_URL }}
+          JFROG_USER: ${{ secrets.JFROG_USER }}
+          JFROG_TOKEN: ${{ secrets.JFROG_TOKEN }}
+        run: |
+          docker run --rm \
+            --volume "${PWD}:/workspace" \
+            --workdir /workspace \
+            --env CONAN_REMOTE_URL --env JFROG_URL --env JFROG_USER --env JFROG_TOKEN \
+            "${{ needs.builder-image.outputs.image }}" \
+            bash -c 'git config --global --add safe.directory /workspace && make build publish'
+
+  release:
+    name: GitHub release
+    runs-on: ubuntu-24.04
+    needs: [package, security]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

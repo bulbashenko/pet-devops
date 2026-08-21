@@ -1,0 +1,31 @@
+---
+# Where the package comes from. "local" installs the .deb this repository just
+# built; "artifactory" downloads the released one. The release pipeline uses
+# artifactory, a developer testing a change uses local.
+sensor_hub_package_source: local
+
+# Path to the .deb when sensor_hub_package_source is "local".
+sensor_hub_local_deb: ""
+
+# Artifactory coordinates when sensor_hub_package_source is "artifactory".
+sensor_hub_artifactory_url: ""
+sensor_hub_artifactory_token: ""
+sensor_hub_version: ""
+
+# Service configuration rendered into /etc/sensor-hub/config.yaml.
+sensor_hub_listen_host: 0.0.0.0
+sensor_hub_listen_port: 8080
+sensor_hub_seed: 42
+sensor_hub_interval_ms: 100
+
+# How long to wait for the daemon to answer /healthz after a restart.
+sensor_hub_health_timeout: 30
+
+# The unit's mount-namespace hardening needs CAP_SYS_ADMIN, which containers do
+# not have. Detected rather than configured, so a real host keeps the full
+# sandbox and the containerised test target still starts. See
+# templates/10-container.conf.j2.
+sensor_hub_relax_sandbox: >-
+  {{ ansible_virtualization_role | default('') == 'guest'
+     and ansible_virtualization_type | default('') in
+         ['docker', 'podman', 'container', 'containerd', 'lxc', 'systemd-nspawn'] }}

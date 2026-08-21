@@ -1,0 +1,49 @@
+# A stand-in for the machine the service actually gets deployed to.
+#
+# It runs systemd and sshd, so the Ansible role installs a .deb and manages a
+# real unit — exactly what it would do against a VM — rather than being written
+# against a container-shaped special case.
+FROM ubuntu:24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# hadolint ignore=DL3008
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        systemd systemd-sysv \
+        openssh-server \
+        sudo \
+        python3 \
+        curl \
+        ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /run/sshd
+
+# Units that are meaningless in a container and only slow the boot down.
+RUN systemctl mask \
+        systemd-udevd.service \
+        systemd-udev-trigger.service \
+        systemd-firstboot.service \
+        systemd-resolved.service \
+        getty.target \
+    && systemctl enable ssh.service
+
+# Key-only access for a passwordless-sudo deploy account: the same shape as a
+# real deploy target, so the playbook needs no container-specific handling.
+RUN useradd --create-home --shell /bin/bash deploy \
+    && install -d -m 0700 -o deploy -g deploy /home/deploy/.ssh \
+    && printf 'deploy ALL=(ALL) NOPASSWD:ALL\n' > /etc/sudoers.d/deploy \
+    && chmod 0440 /etc/sudoers.d/deploy \
+    && sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+COPY target-host-entrypoint.sh /usr/local/bin/target-host-entrypoint.sh
+RUN chmod +x /usr/local/bin/target-host-entrypoint.sh
+
+EXPOSE 22 8080
+STOPSIGNAL SIGRTMIN+3
+
+ENTRYPOINT ["/usr/local/bin/target-host-entrypoint.sh"]
+
+LABEL org.opencontainers.image.source="https://github.com/bulbashenko/pet-devops" \
+      org.opencontainers.image.title="pet-devops deploy target" \
+      org.opencontainers.image.description="Ubuntu 24.04 with systemd and sshd, used as an Ansible target"

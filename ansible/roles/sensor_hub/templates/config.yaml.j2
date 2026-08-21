@@ -1,0 +1,10 @@
+# Managed by Ansible (roles/sensor_hub) — local edits will be overwritten.
+#
+# Deliberately free of timestamps and other per-run values: anything that
+# changes on every run would make the template report "changed", fire the
+# restart handler and bounce a healthy daemon for no reason.
+
+host: {{ sensor_hub_listen_host }}
+port: {{ sensor_hub_listen_port }}
+seed: {{ sensor_hub_seed }}
+interval_ms: {{ sensor_hub_interval_ms }}
