@@ -1,0 +1,32 @@
+# Build output
+build/
+dist/
+stage/
+CMakeUserPresets.json
+
+# Conan
+.conan2/
+conan_output/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+_version.py
+
+# Test reports
+reports/
+*.xml.bak
+
+# Local secrets — never commit
+.env
+secrets/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
