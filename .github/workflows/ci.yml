@@ -61,17 +61,30 @@ jobs:
 
       # The tag is the hash of the Dockerfile, so the image is rebuilt only when
       # the toolchain actually changes; every other run is a cache hit.
-      - name: Build (and push on non-PR)
+      #
+      # A pull request from a fork has no permission to push to GHCR, so its
+      # image travels to the other jobs as a workflow artifact instead.
+      - name: Build and push
+        if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
         with:
           context: docker
           file: docker/Dockerfile.builder
           tags: ${{ steps.meta.outputs.image }}
-          push: ${{ github.event_name != 'pull_request' }}
-          load: ${{ github.event_name == 'pull_request' }}
+          push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: ${{ github.event_name == 'pull_request' && 'type=docker,dest=/tmp/builder.tar' || '' }}
+
+      - name: Build and export
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: docker
+          file: docker/Dockerfile.builder
+          tags: ${{ steps.meta.outputs.image }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          outputs: type=docker,dest=/tmp/builder.tar
 
       - name: Upload image for pull-request jobs
         if: github.event_name == 'pull_request'

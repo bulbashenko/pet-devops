@@ -30,3 +30,7 @@ secrets/
 .idea/
 *.swp
 .DS_Store
+
+# Local agent/editor state
+.claude/
+.coverage
