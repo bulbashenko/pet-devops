@@ -30,6 +30,12 @@ compute_version() {
         return
     fi
 
+    # After a fresh checkout every file looks newer than the index, and
+    # `--dirty` then reports changes that do not exist — which would make the
+    # version change midway through a build. Refreshing the index first turns
+    # that into an honest answer.
+    git -C "${REPO_ROOT}" update-index --refresh >/dev/null 2>&1 || true
+
     local describe
     if describe="$(git -C "${REPO_ROOT}" describe --tags --match 'v[0-9]*' --long --dirty 2>/dev/null)"; then
         # v1.2.3-4-g1a2b3c4[-dirty]

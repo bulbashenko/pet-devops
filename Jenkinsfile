@@ -39,6 +39,13 @@ pipeline {
                         script: './scripts/version.sh',
                         returnStdout: true,
                     ).trim()
+
+                    // Pinned for the rest of the run: scripts/version.sh treats
+                    // SENSORCORE_VERSION as an override, so every later stage
+                    // stamps this exact string instead of re-deriving one that
+                    // could differ from the binary already built.
+                    env.SENSORCORE_VERSION = env.PROJECT_VERSION
+
                     currentBuild.displayName = "#${env.BUILD_NUMBER} — ${env.PROJECT_VERSION}"
                 }
                 sh 'make version'
