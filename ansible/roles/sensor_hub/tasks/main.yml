@@ -57,11 +57,12 @@
 - name: Install the package
   ansible.builtin.apt:
     deb: "{{ sensor_hub_deb_path }}"
-    # dpkg refuses to install over a higher version, which would make a
-    # rollback fail with "A later version is already installed". The contract
-    # here is "this exact artifact runs", so a downgrade is a legitimate
-    # deployment; the version check at the end of this role is what proves it
-    # took effect.
+    # Two separate refusals have to be lifted to make a rollback work: the apt
+    # module compares versions itself and fails with "A later version is
+    # already installed" (force), and dpkg refuses the downgrade underneath
+    # (force-downgrade). The contract here is "this exact artifact runs", and
+    # the version check at the end of this role is what proves it took effect.
+    force: "{{ sensor_hub_allow_downgrade }}"
     dpkg_options: "{{ sensor_hub_dpkg_options }}"
   notify: Restart sensor-hub
   register: sensor_hub_install

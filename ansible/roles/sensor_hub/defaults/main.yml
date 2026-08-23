@@ -21,9 +21,13 @@ sensor_hub_interval_ms: 100
 # How long to wait for the daemon to answer /healthz after a restart.
 sensor_hub_health_timeout: 30
 
+# Deploying an older version than the one installed is a rollback, not a
+# mistake — the pipeline's contract is that the named artifact ends up running.
+sensor_hub_allow_downgrade: true
+
 # Passed to dpkg on install. The first two are Ansible's own defaults (keep the
-# existing config file on upgrade); force-downgrade is what makes rolling back
-# to an earlier version possible at all.
+# existing config file on upgrade); force-downgrade is dpkg's half of allowing
+# a rollback.
 sensor_hub_dpkg_options: "force-confdef,force-confold,force-downgrade"
 
 # The unit's mount-namespace hardening needs CAP_SYS_ADMIN, which containers do
