@@ -21,6 +21,11 @@ sensor_hub_interval_ms: 100
 # How long to wait for the daemon to answer /healthz after a restart.
 sensor_hub_health_timeout: 30
 
+# Passed to dpkg on install. The first two are Ansible's own defaults (keep the
+# existing config file on upgrade); force-downgrade is what makes rolling back
+# to an earlier version possible at all.
+sensor_hub_dpkg_options: "force-confdef,force-confold,force-downgrade"
+
 # The unit's mount-namespace hardening needs CAP_SYS_ADMIN, which containers do
 # not have. Detected rather than configured, so a real host keeps the full
 # sandbox and the containerised test target still starts. See

@@ -152,3 +152,8 @@ SOURCE=artifactory SENSORCORE_VERSION=0.1.0 make deploy
 The role's final check compares the version the daemon reports against the
 installed package, so a rollback that silently left the old process running
 fails the play instead of looking successful.
+
+Rolling back needs dpkg to accept a lower version than the one installed, which
+it refuses by default with *"A later version is already installed"*. The role
+passes `force-downgrade` for exactly this reason — see
+`sensor_hub_dpkg_options` in the role defaults.
