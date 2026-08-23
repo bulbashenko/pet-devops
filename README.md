@@ -79,6 +79,21 @@ make deploy && make smoke
 | sensor-hub | http://localhost:8080/healthz |
 | `make help` | every available target |
 
+## What is actually verified
+
+Nothing here is aspirational — every piece runs:
+
+* **26 tests.** 9 GTest cases on the library, 13 pytest cases on the client with
+  mocked HTTP, and 4 integration cases that start a real `sensor-hub` container
+  and drive the installed `sensorctl` binary against it.
+* **The `.deb` installs.** CI runs `apt-get install ./dist/*.deb` on a clean
+  runner, then waits for the systemd unit to answer `/healthz`.
+* **The deployment is idempotent.** A second `make deploy` reports `changed=0`
+  rather than bouncing a healthy service.
+* **The deployed version is checked, not assumed.** The playbook compares the
+  version the running daemon reports against the package `dpkg` says is
+  installed, so a deploy that left the old process running fails loudly.
+
 ## Layout
 
 | Path | What lives there |
