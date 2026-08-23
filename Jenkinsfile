@@ -23,6 +23,10 @@ pipeline {
         CONAN_HOME = "/home/jenkins/.conan2"
         LC_ALL = 'C.UTF-8'
         LANG = 'C.UTF-8'
+        // The agent shares a network with the deploy target, so it reaches it
+        // by service name rather than through the host's published port.
+        TARGET_HOST = 'target-host'
+        TARGET_PORT = '22'
     }
 
     stages {

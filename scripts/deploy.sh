@@ -7,8 +7,13 @@
 # published artifact is what reaches the host.
 #
 #   SOURCE=local|artifactory   (default: local)
+#   TARGET_HOST / TARGET_PORT  where the deploy target is reachable
 #   LIMIT=<host pattern>       (default: all hosts in the inventory)
 #   CHECK=1                    dry run (--check --diff)
+#
+# TARGET_HOST/PORT exist because the same target has two addresses: a developer
+# on the host reaches the container as 127.0.0.1:2222, while the Jenkins agent
+# shares its network and reaches it as target-host:22.
 set -euo pipefail
 
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,7 +25,11 @@ ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 
 log() { printf '\n=== %s ===\n' "$*"; }
 
-extra_vars=("sensor_hub_package_source=${SOURCE}")
+extra_vars=(
+    "sensor_hub_package_source=${SOURCE}"
+    "ansible_host=${TARGET_HOST:-127.0.0.1}"
+    "ansible_port=${TARGET_PORT:-2222}"
+)
 
 case "${SOURCE}" in
     local)
@@ -50,17 +59,26 @@ case "${SOURCE}" in
         ;;
 esac
 
+# Jenkins binds the deploy key with `sshagent`, so in that context there is no
+# key file to point at — and generating one would create a key the target has
+# never been told to trust.
+if [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
+    log "using the ssh-agent already present in the environment"
+else
+    key="${REPO_ROOT}/secrets/deploy_key"
+    if [[ ! -f "${key}" ]]; then
+        log "no deploy key yet — generating one"
+        "${REPO_ROOT}/scripts/gen_keys.sh"
+    fi
+    extra_vars+=("ansible_ssh_private_key_file=${key}")
+fi
+
 args=(deploy.yml)
 for var in "${extra_vars[@]}"; do
     args+=(--extra-vars "${var}")
 done
 [[ -n "${LIMIT:-}" ]] && args+=(--limit "${LIMIT}")
 [[ "${CHECK:-0}" == "1" ]] && args+=(--check --diff)
-
-if [[ ! -f "${REPO_ROOT}/secrets/deploy_key" ]]; then
-    log "no deploy key yet — generating one"
-    "${REPO_ROOT}/scripts/gen_keys.sh"
-fi
 
 export ANSIBLE_CONFIG="${REPO_ROOT}/ansible/ansible.cfg"
 exec ansible-playbook "${args[@]}"
