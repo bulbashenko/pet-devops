@@ -14,6 +14,7 @@ set -euo pipefail
 BOX_NAME="${BOX_NAME:-devbox}"
 BOX_IMAGE="${BOX_IMAGE:-docker.io/library/ubuntu:24.04}"
 CONAN_VERSION="${CONAN_VERSION:-2.31.2}"
+HADOLINT_VERSION="${HADOLINT_VERSION:-2.12.0}"
 
 if ! command -v distrobox >/dev/null 2>&1; then
     cat >&2 <<'EOF'
@@ -47,6 +48,13 @@ sudo apt-get install -y -qq --no-install-recommends \
     dpkg-dev fakeroot lintian \
     ansible sshpass openssh-client \
     clang-format shellcheck jq
+
+# Matches docker/Dockerfile.builder — the pre-commit hook expects it on PATH.
+if ! command -v hadolint >/dev/null 2>&1; then
+    sudo curl -fsSL -o /usr/local/bin/hadolint \
+        "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-Linux-x86_64"
+    sudo chmod +x /usr/local/bin/hadolint
+fi
 
 export PATH="\$HOME/.local/bin:\$PATH"
 pipx install --quiet "conan==${CONAN_VERSION}" 2>/dev/null || true

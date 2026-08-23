@@ -30,10 +30,14 @@
   when: sensor_hub_package_source == 'local'
   register: sensor_hub_local_copy
 
+- name: Determine the Debian architecture name
+  ansible.builtin.set_fact:
+    sensor_hub_deb_arch: "{{ ansible_architecture | replace('x86_64', 'amd64') | replace('aarch64', 'arm64') }}"
+
 - name: Download the released package from Artifactory
   ansible.builtin.get_url:
     url: >-
-      {{ sensor_hub_artifactory_url }}/sensor-hub/{{ sensor_hub_version }}/sensor-hub_{{ sensor_hub_version }}_{{ ansible_architecture | replace('x86_64', 'amd64') }}.deb
+      {{ sensor_hub_artifactory_url }}/sensor-hub/{{ sensor_hub_version }}/sensor-hub_{{ sensor_hub_version }}_{{ sensor_hub_deb_arch }}.deb
     dest: /tmp/sensor-hub_{{ sensor_hub_version }}.deb
     mode: "0644"
     headers:

@@ -39,6 +39,10 @@ ENV CONAN_HOME=/home/jenkins/.conan2 \
 USER jenkins
 WORKDIR /home/jenkins/agent
 
+# Same reason as in the controller image: the bind-mounted repository comes from
+# the developer's UID, which does not match inside a rootless container.
+RUN git config --global --add safe.directory '*'
+
 ENTRYPOINT ["/usr/local/bin/jenkins-agent-entrypoint.sh"]
 
 LABEL org.opencontainers.image.source="https://github.com/bulbashenko/pet-devops" \

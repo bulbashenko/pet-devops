@@ -29,7 +29,8 @@ public:
     std::vector<Reading> step(std::int64_t timestamp_ms);
 
     /// Convenience wrapper producing `count` steps spaced `interval_ms` apart.
-    std::vector<Reading> sample(std::size_t count, std::int64_t interval_ms, std::int64_t start_ms = 0);
+    std::vector<Reading> sample(std::size_t count, std::int64_t interval_ms,
+                                std::int64_t start_ms = 0);
 
     const std::vector<ChannelSpec>& channels() const noexcept { return channels_; }
 

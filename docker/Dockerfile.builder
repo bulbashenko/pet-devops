@@ -8,6 +8,8 @@ FROM docker.io/library/ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 ARG CONAN_VERSION=2.31.2
 ARG UV_VERSION=0.12.5
+ARG HADOLINT_VERSION=2.12.0
+ARG PRE_COMMIT_VERSION=4.6.2
 
 # hadolint ignore=DL3008
 RUN apt-get update \
@@ -38,7 +40,15 @@ ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 RUN python3 -m venv "${VIRTUAL_ENV}" \
     && pip install --no-cache-dir \
         "conan==${CONAN_VERSION}" \
-        "uv==${UV_VERSION}"
+        "uv==${UV_VERSION}" \
+        "pre-commit==${PRE_COMMIT_VERSION}"
+
+# hadolint as a plain binary rather than through its own container image: the
+# containerised hook cannot read bind-mounted files under rootless podman, and
+# a linter that only works on some developers' machines is worse than none.
+RUN curl -fsSL -o /usr/local/bin/hadolint \
+      "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VERSION}/hadolint-Linux-x86_64" \
+    && chmod +x /usr/local/bin/hadolint
 
 # A profile baked into the image keeps `conan create` reproducible and avoids a
 # `conan profile detect` race on parallel CI jobs.

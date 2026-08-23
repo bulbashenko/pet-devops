@@ -24,9 +24,9 @@ TEST(Stats, SingleValueHasZeroSpread) {
 }
 
 TEST(Stats, ComputesMinMaxMeanStddev) {
-    const auto stats = sensorcore::aggregate({make("a", 2.0), make("a", 4.0), make("a", 4.0),
-                                              make("a", 4.0), make("a", 5.0), make("a", 5.0),
-                                              make("a", 7.0), make("a", 9.0)});
+    const auto stats =
+        sensorcore::aggregate({make("a", 2.0), make("a", 4.0), make("a", 4.0), make("a", 4.0),
+                               make("a", 5.0), make("a", 5.0), make("a", 7.0), make("a", 9.0)});
     EXPECT_EQ(stats.count, 8u);
     EXPECT_DOUBLE_EQ(stats.min, 2.0);
     EXPECT_DOUBLE_EQ(stats.max, 9.0);

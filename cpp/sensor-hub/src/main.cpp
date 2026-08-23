@@ -133,7 +133,8 @@ int main(int argc, char** argv) {
                              "application/json");
     });
 
-    server.Get("/api/v1/readings", [&](const httplib::Request& request, httplib::Response& response) {
+    server.Get("/api/v1/readings", [&](const httplib::Request& request,
+                                       httplib::Response& response) {
         const auto readings = simulator.sample(parse_count(request), config.interval_ms, now_ms());
 
         json items = json::array();

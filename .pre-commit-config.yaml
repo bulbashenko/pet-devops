@@ -44,11 +44,16 @@ repos:
       - id: shellcheck
         args: [--severity=warning]
 
-  - repo: https://github.com/hadolint/hadolint
-    rev: v2.13.1-beta
+  - repo: local
     hooks:
-      - id: hadolint-docker
-        files: ^docker/Dockerfile
+      # hadolint comes from the toolchain image (docker/Dockerfile.builder)
+      # rather than from its own container: the containerised hook cannot read
+      # bind-mounted files under rootless podman.
+      - id: hadolint
+        name: Lint Dockerfiles
+        entry: hadolint --failure-threshold warning
+        language: system
+        files: Dockerfile
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.21.2
@@ -58,7 +63,10 @@ repos:
       - id: gitleaks
 
   - repo: https://github.com/ansible/ansible-lint
-    rev: v24.12.2
+    rev: v25.12.2
     hooks:
       - id: ansible-lint
         files: ^ansible/
+        # ansible-lint defaults to a newer interpreter than Ubuntu 24.04 ships,
+        # and the whole point of the toolchain image is that it is Ubuntu 24.04.
+        language_version: python3.12

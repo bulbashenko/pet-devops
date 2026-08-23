@@ -23,7 +23,7 @@ class Reading:
     unit: str
 
     @classmethod
-    def from_json(cls, payload: dict[str, Any]) -> "Reading":
+    def from_json(cls, payload: dict[str, Any]) -> Reading:
         return cls(
             sensor_id=payload["sensor_id"],
             timestamp_ms=int(payload["timestamp_ms"]),
@@ -50,7 +50,7 @@ class SensorHubClient:
         self._client = client
         self._owns_client = client is None
 
-    def __enter__(self) -> "SensorHubClient":
+    def __enter__(self) -> SensorHubClient:
         return self
 
     def __exit__(self, *exc_info: object) -> None:

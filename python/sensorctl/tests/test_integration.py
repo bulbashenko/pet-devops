@@ -54,12 +54,16 @@ def sensor_hub() -> str:
         capture_output=True,
     )
     try:
-        port = subprocess.run(
-            [RUNTIME, "port", name, "8080/tcp"],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout.strip().rsplit(":", 1)[-1]
+        port = (
+            subprocess.run(
+                [RUNTIME, "port", name, "8080/tcp"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            .stdout.strip()
+            .rsplit(":", 1)[-1]
+        )
 
         endpoint = f"http://127.0.0.1:{port}"
         _wait_until_healthy(endpoint)

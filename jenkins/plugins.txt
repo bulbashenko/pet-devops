@@ -19,6 +19,8 @@ git
 
 # Agents
 ssh-slaves
+# ssh-agent provides the `sshagent` step the deploy stage binds its key with
+ssh-agent
 
 # Reporting
 junit

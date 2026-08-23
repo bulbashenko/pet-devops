@@ -13,6 +13,9 @@ WORKDIR /src
 COPY cpp ./cpp
 COPY scripts ./scripts
 
+# The build below pipes into `head`; without pipefail a failure upstream of the
+# pipe would be swallowed and the image would ship without a binary.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN conan create cpp/sensorcore --version "${SENSORCORE_VERSION}" \
         --build=missing -s build_type=Release -c tools.build:skip_test=True \
     && conan build cpp/sensor-hub --version "${SENSORCORE_VERSION}" \

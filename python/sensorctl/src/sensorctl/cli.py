@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 
@@ -33,7 +33,7 @@ def _version_callback(value: bool) -> None:
 @app.callback()
 def main(
     version: Annotated[
-        Optional[bool],
+        bool | None,
         typer.Option("--version", callback=_version_callback, is_eager=True, help="Show version."),
     ] = None,
 ) -> None:
@@ -89,7 +89,8 @@ def read(
     typer.echo(f"{'SENSOR':<18}{'TIMESTAMP(ms)':>16}{'VALUE':>12}  UNIT")
     for reading in readings:
         typer.echo(
-            f"{reading.sensor_id:<18}{reading.timestamp_ms:>16}{reading.value:>12.3f}  {reading.unit}"
+            f"{reading.sensor_id:<18}{reading.timestamp_ms:>16}"
+            f"{reading.value:>12.3f}  {reading.unit}"
         )
 
 

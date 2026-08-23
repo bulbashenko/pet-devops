@@ -1,0 +1,23 @@
+---
+# ansible-lint walks the whole repository looking for anything YAML-shaped, so
+# it has to be told where the Ansible content actually is. Without this it
+# reports on CMake's generated logs and on the Jenkins JCasC file, neither of
+# which it understands.
+exclude_paths:
+  - .github/
+  - cpp/
+  - python/
+  - docker/
+  - jenkins/
+  - dist/
+  - stage/
+  - reports/
+  - build/
+
+skip_list:
+  # Roles here are consumed from this repository, never from Galaxy, so the
+  # metadata that rule wants would be ceremony with no reader.
+  - meta-no-info
+
+# Treat warnings as failures: a linter whose findings are optional gets ignored.
+strict: true

@@ -29,16 +29,6 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: pre-commit/action@v3.0.1
-
   builder-image:
     name: Toolchain image
     runs-on: ubuntu-24.04
@@ -90,6 +80,48 @@ jobs:
           name: builder-image
           path: /tmp/builder.tar
           retention-days: 1
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    needs: builder-image
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download toolchain image (pull requests)
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v4
+        with:
+          name: builder-image
+          path: /tmp
+
+      - name: Load or pull the toolchain image
+        run: |
+          if [ -f /tmp/builder.tar ]; then
+            docker load --input /tmp/builder.tar
+          else
+            echo "${{ secrets.GITHUB_TOKEN }}" | \
+              docker login "${REGISTRY}" -u "${{ github.actor }}" --password-stdin
+            docker pull "${{ needs.builder-image.outputs.image }}"
+          fi
+
+      - name: Cache pre-commit environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # Runs inside the toolchain image because some hooks (hadolint) come from
+      # it — the same reason developers get identical results locally.
+      - name: Run every linter
+        run: |
+          docker run --rm \
+            --volume "${PWD}:/workspace" \
+            --volume "${HOME}/.cache/pre-commit:/root/.cache/pre-commit" \
+            --workdir /workspace \
+            "${{ needs.builder-image.outputs.image }}" \
+            bash -c 'git config --global --add safe.directory /workspace &&
+                     pre-commit run --all-files --show-diff-on-failure'
 
   build-test:
     name: Build & test
