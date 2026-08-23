@@ -18,7 +18,6 @@ BUILD_TYPE     ?= Release
 REGISTRY       ?= ghcr.io/bulbashenko
 BUILDER_IMAGE  ?= pet-devops-builder:local
 RUNTIME_IMAGE  ?= sensor-hub:local
-COMPOSE        ?= docker compose -f docker/compose.yaml
 
 DEB            := dist/sensor-hub_$(VERSION)_$(ARCH).deb
 
@@ -91,17 +90,16 @@ keys: ## Generate the local SSH key the deploy target trusts
 	./scripts/gen_keys.sh
 
 .PHONY: up
-up: keys builder-image ## Start Jenkins, its agent and the deploy target
-	BUILDER_IMAGE=$(BUILDER_IMAGE) $(COMPOSE) up -d --build
-	@printf '\nJenkins:    http://localhost:8081  (admin / admin)\nsensor-hub: http://localhost:8080/healthz\n\n'
+up: ## Start Jenkins, its agent and the deploy target
+	./scripts/stack.sh up
 
 .PHONY: down
-down: ## Stop the local stack
-	$(COMPOSE) down -v
+down: ## Stop the local stack and remove its volumes
+	./scripts/stack.sh down
 
 .PHONY: logs
 logs: ## Follow the local stack logs
-	$(COMPOSE) logs -f
+	./scripts/stack.sh logs
 
 .PHONY: deploy
 deploy: ## Deploy the built .deb onto the target host with Ansible

@@ -32,10 +32,11 @@ services:
       # network access at all.
       PIPELINE_REPO_URL: "${PIPELINE_REPO_URL:-file:///workspace}"
       PIPELINE_REPO_BRANCH: "${PIPELINE_REPO_BRANCH:-main}"
+      # Supplied by scripts/stack.sh from secrets/deploy_key — see casc.yaml.
+      DEPLOY_KEY: "${DEPLOY_KEY:-}"
     volumes:
       - jenkins-home:/var/jenkins_home
       - ../:/workspace:ro,z
-      - ../secrets/deploy_key:/run/secrets/deploy_key:ro,z
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/login"]
       interval: 10s
@@ -65,7 +66,6 @@ services:
       # A persistent Conan cache turns a five-minute cold build into seconds.
       - agent-conan:/home/jenkins/.conan2
       - ../:/workspace:ro,z
-      - ../secrets/deploy_key:/home/jenkins/.ssh/deploy_key:ro,z
 
   target-host:
     build:

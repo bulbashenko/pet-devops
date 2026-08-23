@@ -76,6 +76,27 @@ docker exec pet-devops-target systemctl reset-failed sensor-hub
 docker exec pet-devops-target systemctl restart sensor-hub
 ```
 
+### Ansible cannot reach the target ("Permission denied (publickey)")
+
+The deploy target has two addresses and two ways of presenting a key, depending
+on who is deploying:
+
+| Caller | Address | Key |
+|---|---|---|
+| Developer on the host | `127.0.0.1:2222` | `secrets/deploy_key` |
+| Jenkins agent | `target-host:22` | held by `ssh-agent`, no file |
+
+`scripts/deploy.sh` supplies both with `--extra-vars`, driven by `TARGET_HOST`,
+`TARGET_PORT` and whether `SSH_AUTH_SOCK` is set. The inventory deliberately
+names no key file: if it did, ssh would offer that one identity, fail to find it
+under Jenkins, and never fall back to the agent.
+
+To deploy somewhere else:
+
+```bash
+TARGET_HOST=10.0.0.5 TARGET_PORT=22 make deploy
+```
+
 ### The Jenkins agent stays offline
 
 The agent fetches its own connection secret from the controller on startup
