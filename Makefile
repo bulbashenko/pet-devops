@@ -61,7 +61,7 @@ deb: ## Build the .deb from the compiled binary
 
 .PHONY: wheel
 wheel: ## Build the sensorctl wheel and sdist into dist/
-	uv build --project python/sensorctl --out-dir dist
+	./scripts/package_wheel.sh
 
 .PHONY: package
 package: deb wheel ## Build every distributable artifact

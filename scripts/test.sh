@@ -50,6 +50,10 @@ run_cpp_tests() {
 run_python_tests() {
     log "Python tests (pytest)"
 
+    # hatchling reads the package version from a generated file; installing the
+    # package for the test run needs it to be there.
+    ./scripts/version.sh --write-python >/dev/null
+
     local marker=(-m "not integration")
     if [[ "${INTEGRATION:-0}" == "1" ]]; then
         marker=()

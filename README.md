@@ -142,6 +142,9 @@ without them Conan resolves dependencies from conancenter, and the publish step
 reports itself as skipped rather than failing. A fork or an outside pull request
 therefore still goes green — which is the whole point of a gate.
 
+Turning publishing on is four environment variables; the checklist is in
+[docs/artifactory.md](docs/artifactory.md).
+
 ## Roadmap
 
 Honest gaps, in the order they would be worth closing:

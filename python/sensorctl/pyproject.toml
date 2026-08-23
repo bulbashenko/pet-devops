@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.24", "hatch-vcs>=0.4"]
+requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
@@ -38,14 +38,11 @@ sensorctl = "sensorctl.cli:run"
 Homepage = "https://github.com/bulbashenko/pet-devops"
 Source = "https://github.com/bulbashenko/pet-devops"
 
-# The wheel version comes from the same git tag the Conan package and the DEB
-# use — see scripts/version.sh and docs/adr/0002-version-from-git-tag.md.
+# The version is written into _version.py by scripts/package_wheel.sh from
+# scripts/version.sh — the same string the Conan package, the .deb and the
+# container tag carry. See docs/adr/0002-version-from-git-tag.md.
 [tool.hatch.version]
-source = "vcs"
-raw-options = { root = "../..", tag_regex = "^v(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)$" }
-
-[tool.hatch.build.hooks.vcs]
-version-file = "src/sensorctl/_version.py"
+path = "src/sensorctl/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sensorctl"]
