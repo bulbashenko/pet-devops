@@ -43,6 +43,82 @@ the `.deb`, the wheel and the image alike ([ADR 0002](adr/0002-version-from-git-
 GitHub Actions attaches the artifacts to a GitHub release, and the Jenkins job
 publishes to Artifactory and deploys.
 
+## Deploying a specific version, in either direction
+
+`SENSORCORE_VERSION` overrides what `scripts/version.sh` derives, and every
+deployment path honours it. Rolling back and rolling forward are therefore the
+same command with a different value — there is no separate rollback procedure to
+get wrong under pressure.
+
+First, find out where you are:
+
+```bash
+# What is actually serving
+curl -s localhost:8080/healthz
+
+# What the target believes it has installed
+docker exec pet-devops-target dpkg-query --showformat='${Version}\n' --show sensor-hub
+
+# Which builds are available locally
+ls -1 dist/*.deb | sed 's/.*sensor-hub_//; s/_amd64.deb//'
+```
+
+Then deploy the one you want:
+
+```bash
+# From a .deb already in dist/
+SENSORCORE_VERSION=0.1.0.dev2+gaf66d71 make deploy
+
+# From a released version in Artifactory
+SOURCE=artifactory SENSORCORE_VERSION=0.1.0 make deploy
+
+# Back to whatever the working tree is at
+make deploy
+```
+
+Verify, naming the version you expect so a silent no-op cannot pass:
+
+```bash
+make smoke                                          # checks whatever is serving
+./scripts/smoke_test.py --expect-version 0.1.0      # fails unless that exact build answers
+```
+
+The role compares the version the daemon reports against the package `dpkg` says
+is installed and fails the play when they differ, so a deployment that left the
+old process running is reported as a failure rather than a success.
+
+In Jenkins the same thing is the `DEPLOY_SOURCE` build parameter — `local` for
+the artifact that run built, `artifactory` for a published one.
+
+### Restarting or stopping the deployed service
+
+```bash
+docker exec pet-devops-target systemctl status sensor-hub
+docker exec pet-devops-target systemctl restart sensor-hub
+docker exec pet-devops-target journalctl -u sensor-hub -n 50 --no-pager
+```
+
+On a real host these are the same commands over ssh:
+
+```bash
+ssh -i secrets/deploy_key -p 2222 deploy@localhost 'sudo systemctl restart sensor-hub'
+```
+
+### Starting over
+
+Each level of "start over" costs more than the last; take the cheapest one that
+fixes the problem:
+
+```bash
+make clean            # build output only — cpp builds, dist, reports, venv
+make down && make up   # rebuild the whole stack, discarding Jenkins' volume
+docker exec pet-devops-target apt-get purge -y sensor-hub   # uninstall from the target
+```
+
+`make down` deletes the Jenkins home volume. That is safe here precisely because
+the controller is built from `jenkins/casc.yaml` and holds no state worth
+keeping ([ADR 0005](adr/0005-jenkins-as-code.md)).
+
 ## Troubleshooting
 
 ### The deploy target's service will not start
@@ -141,19 +217,12 @@ export JFROG_TOKEN=<identity token>
 make publish
 ```
 
-### Rolling back a deployment
+### A rollback is refused
 
-The `.deb` is versioned, so rolling back is installing the previous one:
-
-```bash
-SOURCE=artifactory SENSORCORE_VERSION=0.1.0 make deploy
-```
-
-The role's final check compares the version the daemon reports against the
-installed package, so a rollback that silently left the old process running
-fails the play instead of looking successful.
-
-Rolling back needs dpkg to accept a lower version than the one installed, which
-it refuses by default with *"A later version is already installed"*. The role
-passes `force-downgrade` for exactly this reason — see
+The commands are above, under
+[Deploying a specific version](#deploying-a-specific-version-in-either-direction).
+Going backwards needs two separate refusals lifted: the `apt` module compares
+versions itself and fails with *"A later version is already installed"*, and
+dpkg underneath refuses the downgrade. The role sets `force` and
+`force-downgrade` for exactly this reason — see `sensor_hub_allow_downgrade` and
 `sensor_hub_dpkg_options` in the role defaults.
