@@ -2,28 +2,51 @@
 
 Operating the stack, and what to do when a piece of it misbehaves.
 
-## Everyday commands
+## Where to run commands
 
-All of these run inside the build environment (`distrobox enter devbox`, or the
-builder image). `make help` lists them.
+**Inside the development container.** Run everything from there:
 
 ```bash
+distrobox enter devbox
+```
+
+It is the only place where every command works. It has the compiler, CMake,
+Conan, uv and Ansible, and `scripts/devbox.sh` installs a `docker` shim that
+forwards to the host — so even starting and stopping the container stack works
+from inside it. The container also shares the host's network namespace, which is
+why `localhost:8080` means the same thing on both sides.
+
+A developer already on Ubuntu does not need distrobox at all: install the same
+packages listed in `docker/Dockerfile.builder`, or shell into that image.
+
+One trap worth knowing: distrobox shares your home directory, so `~/.local/bin`
+puts `conan`, `uv` and `sensorctl` on the host's `PATH` too — where they fail
+with `ModuleNotFoundError`, because they are virtualenvs built against the
+container's Python. A confusing traceback from one of those on the host almost
+always means "you are in the wrong shell", not that anything is broken.
+
+From the host itself only the things needing no toolchain work: `make up`,
+`make down`, `make smoke`, `curl`, and git.
+
+## Everyday commands
+
+```bash
+make help             # every target, with a one-line description
+
 make build            # conan create sensorcore, then build sensor-hub
 make test             # GTest + pytest, JUnit XML into reports/
 make test-integration # the same, plus tests against a real container
 make deb wheel        # artifacts into dist/
 make lint             # every linter, through pre-commit
-```
 
-The local stack runs on the host, not inside the development container:
-
-```bash
-make keys             # once — generates secrets/deploy_key
 make up               # Jenkins controller + agent + deploy target
 make deploy           # Ansible installs the built .deb on the target
 make smoke            # verifies what is actually serving
 make down             # stop everything, remove volumes
 ```
+
+`make up` generates `secrets/deploy_key` on first run, so there is nothing to
+set up beforehand.
 
 | Service | URL | Credentials |
 |---|---|---|

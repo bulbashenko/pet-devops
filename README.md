@@ -57,19 +57,19 @@ Neither contains build logic; both call `make`, which calls `scripts/`.
 
 ## Quickstart
 
-Two commands, assuming Docker or Podman and (on a non-Ubuntu host) distrobox:
+Assuming Docker or Podman and, on a non-Ubuntu host, distrobox:
 
 ```bash
-make devbox        # Ubuntu 24.04 toolchain container — once
-distrobox enter devbox
-make build test    # compile, run 26 tests, write JUnit reports
+make devbox              # Ubuntu 24.04 toolchain container — once
+distrobox enter devbox   # run everything from here
+make build test          # compile, run 26 tests, write JUnit reports
 ```
 
 The full stack — Jenkins, its build agent and a systemd host to deploy onto —
-runs from the host:
+starts from that same shell:
 
 ```bash
-make keys && make up
+make up                  # generates the deploy key on first run
 make deploy && make smoke
 ```
 
