@@ -39,17 +39,17 @@ ENV CONAN_HOME=/home/jenkins/.conan2 \
 USER jenkins
 WORKDIR /home/jenkins/agent
 
-# Same reason as in the controller image: the bind-mounted repository comes from
-# the developer's UID, which does not match inside a rootless container.
-RUN git config --global --add safe.directory '*'
-
-# Create Conan's home as the jenkins user so the named volume compose mounts at
-# CONAN_HOME initialises jenkins-owned. The builder image ran `conan profile
-# detect` as root under /root/.conan2, which the agent never sees; without this
-# the volume comes up root-owned and the first `conan` call fails with
-# EACCES on global.conf. Baking the profile also avoids a detect race across
-# the agent's parallel executors, same as the builder image does.
-RUN conan profile detect --force
+# Prepare the jenkins user's git and Conan setup in one layer:
+#   * safe.directory covers the bind-mounted repo whose UID does not match
+#     inside a rootless container (same as the controller image).
+#   * creating Conan's home here, as jenkins, is what makes the CONAN_HOME
+#     volume compose mounts come up jenkins-owned. The builder image ran
+#     `conan profile detect` as root under /root/.conan2, which the agent never
+#     sees; without this the volume is root-owned and the first `conan` call
+#     fails with EACCES on global.conf. Baking the profile also avoids a detect
+#     race across the agent's parallel executors.
+RUN git config --global --add safe.directory '*' \
+    && conan profile detect --force
 
 ENTRYPOINT ["/usr/local/bin/jenkins-agent-entrypoint.sh"]
 
