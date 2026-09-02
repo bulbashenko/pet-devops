@@ -263,7 +263,10 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [builder-image, package]
     permissions:
-      contents: read
+      # write, not read: on a tag build the SBOM step attaches the SBOM to the
+      # GitHub release, which the API refuses ("resource not accessible by
+      # integration") without it. security-events is for the SARIF upload.
+      contents: write
       security-events: write
     steps:
       - uses: actions/checkout@v4
