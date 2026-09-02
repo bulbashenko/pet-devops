@@ -14,31 +14,23 @@
   body { margin: 0; background: var(--bg); color: var(--fg);
     font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
   header { padding: 20px 24px; border-bottom: 1px solid var(--line); }
-  header h1 { margin: 0; font-size: 18px; letter-spacing: .2px; }
+  header h1 { margin: 0; font-size: 18px; }
   header p { margin: 4px 0 0; color: var(--dim); font-size: 13px; }
   .wrap { max-width: 980px; margin: 0 auto; padding: 20px 24px 60px; }
-  .banner { display: flex; align-items: center; gap: 14px; background: var(--panel);
-    border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin-bottom: 22px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 14px; }
   .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--commit); flex: none; }
   .dot.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(56,193,114,.15); }
   .dot.bad { background: var(--bad); box-shadow: 0 0 0 4px rgba(227,82,74,.15); }
-  .banner .v { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .banner small { color: var(--dim); }
-  .banner .spacer { flex: 1; }
-  .modebar { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
-  .modelabel { color: var(--dim); font-size: 13px; }
-  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-  .seg button { border: 0; border-radius: 0; background: var(--panel); color: var(--dim); padding: 7px 14px; }
-  .seg button small { font-weight: 400; opacity: .8; }
-  .seg button.on { background: var(--accent); color: #fff; }
-  .seg button:disabled { opacity: .4; cursor: default; }
-  .modehint { color: var(--dim); font-size: 12px; }
-  #log pre a { color: var(--accent); }
+  .v { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .card small { color: var(--dim); }
+  .spacer { flex: 1; }
   button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--line);
     background: var(--panel2); color: var(--fg); padding: 7px 14px; }
   button:hover:not(:disabled) { border-color: var(--accent); }
-  button:disabled { opacity: .5; cursor: default; }
+  button:disabled { opacity: .45; cursor: default; }
   button.ghost { background: transparent; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
   table { width: 100%; border-collapse: collapse; }
   th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .5px;
     color: var(--dim); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--line); }
@@ -54,13 +46,12 @@
   .reg { font-size: 12px; margin-left: 2px; }
   .act { text-align: right; white-space: nowrap; }
   .rollback { color: var(--tag); }
-  #log { display: none; margin-top: 22px; background: #0a0c11; border: 1px solid var(--line);
-    border-radius: 10px; }
-  #log .head { display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-    border-bottom: 1px solid var(--line); }
+  #log { display: none; margin-top: 20px; background: #0a0c11; border: 1px solid var(--line); border-radius: 10px; }
+  #log .head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
   #log .head .t { font-weight: 600; }
   #log pre { margin: 0; padding: 14px; max-height: 380px; overflow: auto;
     font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+  #log a { color: var(--accent); }
   .pill { font-size: 12px; padding: 2px 10px; border-radius: 20px; }
   .pill.run { background: rgba(79,140,255,.15); color: var(--accent); }
   .pill.ok { background: rgba(56,193,114,.15); color: var(--ok); }
@@ -70,10 +61,10 @@
 <body>
 <header>
   <h1>Release Console · sensor-hub</h1>
-  <p>Pick a version and deploy it to the target. Rolling back is deploying an older one — same button.</p>
+  <p>Cut a release of HEAD, then deploy or roll back between released versions — installed straight from Artifactory, no rebuild.</p>
 </header>
 <div class="wrap">
-  <div class="banner">
+  <div class="card">
     <span id="dot" class="dot"></span>
     <div>
       <div>In production: <span id="serving" class="v">—</span></div>
@@ -83,14 +74,13 @@
     <button class="ghost" id="refresh">↻ Refresh</button>
   </div>
 
-  <div class="modebar">
-    <span class="modelabel">Deploy via</span>
-    <div class="seg" id="seg">
-      <button data-mode="fast" class="on">⚡ Fast <small>rebuild, ~1 min</small></button>
-      <button data-mode="jenkins">🏭 Jenkins <small>rebuild, audited</small></button>
-      <button data-mode="artifactory">📦 Artifactory <small>prebuilt, no rebuild</small></button>
+  <div class="card">
+    <div>
+      <div>Release the current tip &nbsp;<span id="headver" class="v">—</span></div>
+      <small id="headsub"></small>
     </div>
-    <span id="modehint" class="modehint"></span>
+    <span class="spacer"></span>
+    <button class="primary" id="release">🏭 Release HEAD</button>
   </div>
 
   <table>
@@ -99,13 +89,14 @@
     </thead>
     <tbody id="rows"><tr><td colspan="4" class="sub">Loading…</td></tr></tbody>
   </table>
+  <p class="sub" id="hint" style="margin-top:12px"></p>
 
   <div id="log">
     <div class="head">
-      <span class="t">Deploy log</span>
+      <span class="t">Log</span>
       <span id="status" class="pill run">running…</span>
       <a id="jlink" href="#" target="_blank" rel="noopener" hidden>open in Jenkins ↗</a>
-      <span class="spacer" style="flex:1"></span>
+      <span class="spacer"></span>
       <button class="ghost" id="closelog">Close</button>
     </div>
     <pre id="out"></pre>
@@ -114,33 +105,20 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-let state = { versions: [], deployed: {}, jenkins: false };
+let state = { versions: [], deployed: {}, artifactory: {}, head: {} };
 let busy = false;
-let mode = 'fast';
-try { mode = localStorage.getItem('rc-mode') || 'fast'; } catch (e) {}
-
-function modeAvailable(m) {
-  if (m === 'jenkins') return !!state.jenkins;
-  if (m === 'artifactory') return !!(state.artifactory && state.artifactory.enabled);
-  return true;
-}
-function published(ver) {
-  return !!(state.artifactory && (state.artifactory.published || []).includes(ver));
-}
-function setMode(m) {
-  if (!modeAvailable(m)) return;
-  mode = m;
-  try { localStorage.setItem('rc-mode', m); } catch (e) {}
-  document.querySelectorAll('#seg button').forEach(b =>
-    b.classList.toggle('on', b.dataset.mode === m));
-}
-document.querySelectorAll('#seg button').forEach(b =>
-  b.onclick = () => { if (!b.disabled) setMode(b.dataset.mode); });
 
 async function load() {
   const r = await fetch('/api/state');
   state = await r.json();
   render();
+}
+
+function published(ver) {
+  return !!(state.artifactory && (state.artifactory.published || []).includes(ver));
+}
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
 function render() {
@@ -152,17 +130,12 @@ function render() {
         : '⚠ dpkg says ' + d.installed + ' — differs from what is serving')
     : 'target not reachable';
 
-  document.querySelector('#seg button[data-mode="jenkins"]').disabled = !modeAvailable('jenkins');
-  document.querySelector('#seg button[data-mode="artifactory"]').disabled = !modeAvailable('artifactory');
-  if (!modeAvailable(mode)) setMode('fast');
-  const hints = {
-    fast: 'builds the version in the agent and deploys it — works for any version',
-    jenkins: 'runs the sensor-hub-rollback job — shows up in Jenkins history',
-    artifactory: 'installs the prebuilt .deb from Artifactory — no rebuild, published versions only',
-  };
-  $('modehint').textContent = hints[mode] || '';
-  document.querySelectorAll('#seg button').forEach(b =>
-    b.classList.toggle('on', b.dataset.mode === mode));
+  const h = state.head || {};
+  $('headver').textContent = h.version || '—';
+  $('headsub').textContent = h.subject || '';
+  const alreadyReleased = published(h.version);
+  $('release').disabled = busy || !state.jenkins;
+  $('release').textContent = alreadyReleased ? '🏭 Re-release HEAD' : '🏭 Release HEAD';
 
   const live = state.versions.find(v => v.version === d.serving);
   const liveTs = live ? live.ts : null;
@@ -170,12 +143,15 @@ function render() {
     const isNow = v.version === d.serving;
     const older = liveTs !== null && v.ts < liveTs;
     const inReg = published(v.version);
-    const blocked = mode === 'artifactory' && !inReg;
-    const disabled = isNow || busy || blocked;
-    let label;
-    if (isNow) label = 'Deployed';
-    else if (blocked) label = '<span class="sub">not in registry</span>';
-    else label = older ? '<span class="rollback">↩ Roll back</span>' : 'Deploy';
+    let cell;
+    if (isNow) {
+      cell = '<button disabled>Deployed</button>';
+    } else if (!inReg) {
+      cell = '<span class="sub">not released</span>';
+    } else {
+      const label = older ? '<span class="rollback">↩ Roll back</span>' : 'Deploy';
+      cell = `<button data-ref="${v.sha}" data-ver="${escapeHtml(v.version)}" ${busy ? 'disabled' : ''}>${label}</button>`;
+    }
     return `<tr class="${isNow ? 'live' : ''}">
       <td>
         <span class="badge ${v.kind}">${v.kind}</span>
@@ -186,35 +162,26 @@ function render() {
       </td>
       <td class="sha">${v.sha}</td>
       <td class="sub">${v.date}</td>
-      <td class="act">
-        <button data-ref="${v.sha}" data-ver="${escapeHtml(v.version)}"
-          ${disabled ? 'disabled' : ''}>${label}</button>
-      </td></tr>`;
+      <td class="act">${cell}</td></tr>`;
   }).join('');
 
   document.querySelectorAll('#rows button[data-ref]').forEach(b =>
-    b.onclick = () => deploy(b.dataset.ref, b.dataset.ver));
+    b.onclick = () => deployFromRegistry(b.dataset.ref, b.dataset.ver));
+
+  $('hint').textContent = state.artifactory && state.artifactory.enabled
+    ? '📦 = published to Artifactory and deployable. To make a version deployable, release it.'
+    : 'Artifactory is not configured — set secrets/jfrog.env and restart.';
 }
 
-function escapeHtml(s) {
-  return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-}
-
-async function deploy(ref, ver) {
-  if (busy) return;
-  const via = { fast: '', jenkins: ' via Jenkins', artifactory: ' from Artifactory' }[mode] || '';
-  if (!confirm(`Deploy ${ver} to the target${via}?`)) return;
+async function stream(endpoint, statusInit) {
   busy = true; render();
   $('log').style.display = 'block';
   $('out').textContent = '';
   $('jlink').hidden = true;
-  setStatus('run', mode === 'jenkins' ? 'queued in Jenkins…' : 'running…');
+  setStatus('run', statusInit);
   $('log').scrollIntoView({ behavior: 'smooth' });
-
-  const endpoint = { fast: '/api/deploy', jenkins: '/api/deploy_jenkins',
-                     artifactory: '/api/deploy_artifactory' }[mode] || '/api/deploy';
   try {
-    const resp = await fetch(endpoint + '?ref=' + encodeURIComponent(ref));
+    const resp = await fetch(endpoint);
     const reader = resp.body.getReader();
     const dec = new TextDecoder();
     let done = null;
@@ -230,7 +197,7 @@ async function deploy(ref, ver) {
       const m = out.textContent.match(/https?:\/\/[^\s]*\/job\/[^\s]*?\/\d+\//);
       if (m) { $('jlink').href = m[0] + 'console'; $('jlink').hidden = false; }
     }
-    setStatus(done ? 'ok' : 'bad', done ? '✓ deployed' : '✗ failed');
+    setStatus(done ? 'ok' : 'bad', done ? '✓ done' : '✗ failed');
   } catch (e) {
     setStatus('bad', '✗ ' + e.message);
   } finally {
@@ -238,6 +205,19 @@ async function deploy(ref, ver) {
     await load();
   }
 }
+
+function deployFromRegistry(ref, ver) {
+  if (busy) return;
+  if (!confirm(`Deploy ${ver} to the target from Artifactory?`)) return;
+  stream('/api/deploy_artifactory?ref=' + encodeURIComponent(ref), 'deploying…');
+}
+
+$('release').onclick = () => {
+  if (busy) return;
+  const h = state.head || {};
+  if (!confirm(`Cut a release of ${h.version} (build, test, publish, deploy)?`)) return;
+  stream('/api/release', 'queued in Jenkins…');
+};
 
 function setStatus(cls, text) {
   const s = $('status');
