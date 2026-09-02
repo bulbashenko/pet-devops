@@ -1,0 +1,52 @@
+// Rollback / version-pin pipeline.
+//
+// A separate job from the full release (sensor-hub-release) on purpose: this one
+// takes a git ref and puts *that* version on the target, so the action is
+// visible and audited in Jenkins' build history — the "slow" path the Release
+// Console web UI offers next to its direct-to-agent "fast" path.
+//
+// It reuses scripts/release_deploy.sh, the single source of deploy truth, which
+// builds the requested ref's artifact but deploys it with the CURRENT tooling —
+// so rolling back to a version older than the "allow downgrades" fix still works.
+pipeline {
+    agent { label 'ubuntu-build' }
+
+    options {
+        timestamps()
+        ansiColor('xterm')
+        timeout(time: 20, unit: 'MINUTES')
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+    }
+
+    parameters {
+        string(name: 'DEPLOY_REF', defaultValue: '',
+               description: 'Git ref (tag or commit sha) to build and deploy to the target')
+    }
+
+    environment {
+        PATH = "/opt/toolchain/bin:${env.PATH}"
+        LC_ALL = 'C.UTF-8'
+        LANG = 'C.UTF-8'
+    }
+
+    stages {
+        stage('Rollback deploy') {
+            steps {
+                script {
+                    if (!params.DEPLOY_REF?.trim()) {
+                        error 'DEPLOY_REF is required (a tag or commit sha to deploy).'
+                    }
+                    currentBuild.displayName = "#${env.BUILD_NUMBER} — deploy ${params.DEPLOY_REF}"
+                }
+                sh 'bash scripts/release_deploy.sh "$DEPLOY_REF"'
+            }
+        }
+    }
+
+    post {
+        success { echo "Deployed ${params.DEPLOY_REF} to the target." }
+        failure { echo "Failed to deploy ${params.DEPLOY_REF}." }
+        cleanup { cleanWs(notFailBuild: true) }
+    }
+}

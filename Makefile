@@ -109,6 +109,10 @@ deploy: ## Deploy the built .deb onto the target host with Ansible
 smoke: ## Verify a deployed instance answers correctly
 	./scripts/smoke_test.py
 
+.PHONY: ui
+ui: ## Release Console: web panel to view versions and deploy/roll back (http://localhost:8090)
+	@python3 webui/server.py
+
 # --- housekeeping ------------------------------------------------------------
 
 .PHONY: devbox

@@ -43,6 +43,14 @@ WORKDIR /home/jenkins/agent
 # the developer's UID, which does not match inside a rootless container.
 RUN git config --global --add safe.directory '*'
 
+# Create Conan's home as the jenkins user so the named volume compose mounts at
+# CONAN_HOME initialises jenkins-owned. The builder image ran `conan profile
+# detect` as root under /root/.conan2, which the agent never sees; without this
+# the volume comes up root-owned and the first `conan` call fails with
+# EACCES on global.conf. Baking the profile also avoids a detect race across
+# the agent's parallel executors, same as the builder image does.
+RUN conan profile detect --force
+
 ENTRYPOINT ["/usr/local/bin/jenkins-agent-entrypoint.sh"]
 
 LABEL org.opencontainers.image.source="https://github.com/bulbashenko/pet-devops" \
