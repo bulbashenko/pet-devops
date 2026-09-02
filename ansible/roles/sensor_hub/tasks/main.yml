@@ -34,23 +34,40 @@
   ansible.builtin.set_fact:
     sensor_hub_deb_arch: "{{ ansible_architecture | replace('x86_64', 'amd64') | replace('aarch64', 'arm64') }}"
 
-- name: Download the released package from Artifactory
-  ansible.builtin.get_url:
+- name: Request the released package from Artifactory (authenticate, do not follow redirects)
+  ansible.builtin.uri:
     url: >-
       {{ sensor_hub_artifactory_url }}/sensor-hub/{{ sensor_hub_version }}/sensor-hub_{{ sensor_hub_version }}_{{ sensor_hub_deb_arch }}.deb
-    dest: /tmp/sensor-hub_{{ sensor_hub_version }}.deb
-    mode: "0644"
     headers:
       Authorization: Bearer {{ sensor_hub_artifactory_token }}
+    follow_redirects: none
+    status_code: [200, 302]
+    dest: /tmp/sensor-hub_{{ sensor_hub_version }}.deb
+    mode: "0644"
   when: sensor_hub_package_source == 'artifactory'
-  register: sensor_hub_download
+  register: sensor_hub_fetch
   no_log: true # the Authorization header must not reach the log
+
+- name: Follow Artifactory's redirect to storage without the auth header
+  # JFrog Cloud serves binaries with a 302 to a pre-signed S3 URL whose auth is
+  # already in its query string; forwarding the Bearer header to it makes S3
+  # reject the request with "only one auth mechanism allowed". curl drops the
+  # header on a cross-host redirect and so worked, but ansible/urllib keeps it.
+  # Self-hosted Artifactory returns the bytes directly (200) and this is skipped.
+  ansible.builtin.get_url:
+    url: "{{ sensor_hub_fetch.location }}"
+    dest: /tmp/sensor-hub_{{ sensor_hub_version }}.deb
+    mode: "0644"
+  when:
+    - sensor_hub_package_source == 'artifactory'
+    - sensor_hub_fetch.status == 302
+  no_log: true # the pre-signed URL carries a signature that must not be logged
 
 - name: Resolve the package path on the target
   ansible.builtin.set_fact:
     sensor_hub_deb_path: >-
       {{ sensor_hub_local_copy.dest if sensor_hub_package_source == 'local'
-         else sensor_hub_download.dest }}
+         else '/tmp/sensor-hub_' + sensor_hub_version + '.deb' }}
 
 # --- install -----------------------------------------------------------------
 
